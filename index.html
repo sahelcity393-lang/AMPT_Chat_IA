@@ -1,182 +1,159 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AMPT Chat IA</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <style>
-        :root {
-            --sidebar-bg: #f9f9f9;
-            --main-bg: #ffffff;
-            --logo-cyan: #00d2ff;
-            --logo-blue: #3a7bd5;
-            --text-color: #0d0d0d;
-            --border: #e5e5e5;
-        }
+import 'package:flutter/material.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
-        body {
-            font-family: -apple-system, system-ui, sans-serif;
-            margin: 0; display: flex; height: 100vh;
-            background: var(--main-bg); color: var(--text-color);
-        }
+void main() {
+  runApp(const AMPTChatApp());
+}
 
-        /* Sidebar style ChatGPT */
-        #sidebar {
-            width: 260px; background: var(--sidebar-bg);
-            border-right: 1px solid var(--border);
-            display: flex; flex-direction: column; padding: 15px;
-        }
+class AMPTChatApp extends StatefulWidget {
+  const AMPTChatApp({super.key});
 
-        .nav-item {
-            padding: 12px; margin-bottom: 5px; cursor: pointer;
-            border-radius: 8px; display: flex; align-items: center; gap: 12px;
-            font-size: 14px; transition: 0.2s;
-        }
-        .nav-item:hover { background: #ececec; }
-        .nav-item i { font-size: 18px; }
+  @override
+  State<AMPTChatApp> createState() => _AMPTChatAppState();
+}
 
-        /* Main Area */
-        #main { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
-        
-        header {
-            width: 100%; padding: 15px 25px; display: flex; 
-            justify-content: space-between; align-items: center;
-        }
+class _AMPTChatAppState extends State<AMPTChatApp> {
+  ThemeMode _themeMode = ThemeMode.dark; // Mode sombre par défaut
 
-        .logo-header { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
-        .logo-header img { height: 32px; width: 32px; border-radius: 6px; }
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'AMPT Chat IA',
+      theme: ThemeData(brightness: Brightness.light, useMaterial3: true),
+      darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
+      themeMode: _themeMode,
+      home: const ChatScreen(),
+    );
+  }
+}
 
-        #chat-container {
-            width: 100%; max-width: 800px; flex: 1;
-            overflow-y: auto; padding: 50px 20px;
-        }
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
 
-        .welcome-text {
-            text-align: center; margin-top: 15vh; font-size: 26px; font-weight: 600;
-            background: linear-gradient(90deg, var(--logo-cyan), var(--logo-blue));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
 
-        /* Bubble Style */
-        .message { margin-bottom: 30px; line-height: 1.7; font-size: 16px; }
-        .user-msg { font-weight: 700; color: #000; }
-        .ai-msg { color: #333; }
+class _ChatScreenState extends State<ChatScreen> {
+  final TextEditingController _controller = TextEditingController();
+  final List<Map<String, String>> _messages = [];
+  
+  // VOTRE CLÉ API INTÉGRÉE
+  final String _apiKey = "AIzaSyDgZciBp3pJczzXU83AFCTWIaC8tRqZhBw";
 
-        /* Barre de saisie style "Capture" avec couleurs du logo */
-        .input-group {
-            position: absolute; bottom: 35px; width: 90%; max-width: 760px;
-            background: #f4f4f4; border-radius: 30px; padding: 10px 18px;
-            display: flex; align-items: center; gap: 15px;
-            border: 1px solid transparent; transition: 0.3s;
-        }
-        .input-group:focus-within { border-color: var(--logo-cyan); background: #fff; box-shadow: 0 0 15px rgba(0, 210, 255, 0.1); }
+  late final GenerativeModel _model;
 
-        #user-input {
-            flex: 1; border: none; background: transparent;
-            font-size: 16px; outline: none; padding: 10px 0;
-        }
+  @override
+  void initState() {
+    super.initState();
+    _model = GenerativeModel(model: 'gemini-1.5-flash', apiKey: _apiKey);
+  }
 
-        .icon-action {
-            background: none; border: none; cursor: pointer;
-            font-size: 20px; color: #676767; transition: 0.2s;
-        }
-        .icon-action:hover { color: var(--logo-cyan); }
+  Future<void> _sendMessage() async {
+    final userText = _controller.text;
+    if (userText.isEmpty) return;
 
-        /* Bouton d'envoi rond comme sur la capture mais avec ton dégradé */
-        .send-btn {
-            background: linear-gradient(135deg, var(--logo-cyan), var(--logo-blue));
-            color: white; border-radius: 50%; width: 36px; height: 36px;
-            display: flex; align-items: center; justify-content: center;
-            border: none; cursor: pointer; font-size: 18px;
-        }
-        .send-btn:hover { opacity: 0.9; transform: scale(1.05); }
+    setState(() {
+      _messages.add({"role": "user", "text": userText});
+      _controller.clear();
+    });
 
-    </style>
-</head>
-<body>
+    try {
+      // Gestion de la question sur le créateur
+      if (userText.toLowerCase().contains("qui t'a créé") || userText.toLowerCase().contains("ton créateur")) {
+        _addResponse("J'ai été créé par **Abdoul Raouf Mamadou Patrice Traore**, un jeune Nigérien de 16 ans passionné par la technologie et l'innovation.");
+        return;
+      }
 
-    <nav id="sidebar">
-        <div class="nav-item" onclick="location.reload()"><span>➕</span> Nouveau chat</div>
-        <div class="nav-item"><span>🔍</span> Recherche approfondie</div>
-        <div class="nav-item"><span>🎨</span> Générateur d'images</div>
-        <div class="nav-item"><span>⚙️</span> Paramètres</div>
-        <div style="margin-top: auto;" class="nav-item"><span>👤</span> Abdoul Raouf</div>
-    </nav>
+      final content = [Content.text(userText)];
+      final response = await _model.generateContent(content);
+      
+      setState(() {
+        _messages.add({"role": "ai", "text": response.text ?? "Désolé, je ne peux pas répondre."});
+      });
+    } catch (e) {
+      _addResponse("Erreur de connexion. Vérifiez votre clé API ou votre internet.");
+    }
+  }
 
-    <main id="main">
-        <header>
-            <div class="logo-header">
-                <img src="logo.png" alt="L"> AMPT Chat IA
-            </div>
-            <div style="font-size: 12px; opacity: 0.5;">Modèle : Gemini 1.5 Flash</div>
-        </header>
+  void _addResponse(String text) {
+    setState(() {
+      _messages.add({"role": "ai", "text": text});
+    });
+  }
 
-        <div id="chat-container">
-            <div id="start-screen" class="welcome-text">Toujours prêt à répondre.</div>
-        </div>
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("AMPT Chat IA"),
+        actions: [
+          IconButton(icon: const Icon(Icons.settings), onPressed: () => _openSettings()),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final msg = _messages[index];
+                return ListTile(
+                  title: Align(
+                    alignment: msg["role"] == "user" ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: msg["role"] == "user" ? Colors.blueAccent : Colors.grey[800],
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Text(msg["text"]!, style: const TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          _buildInputArea(),
+        ],
+      ),
+    );
+  }
 
-        <div class="input-group">
-            <label for="img-upload" class="icon-action" title="Joindre une image">📎</label>
-            <input type="file" id="img-upload" hidden accept="image/*">
-            
-            <input type="text" id="user-input" placeholder="Demandez n'importe quoi à AMPT...">
-            
-            <button class="icon-action" id="voice-btn">🎤</button>
-            <button class="send-btn" id="send-btn">↑</button>
-        </div>
-    </main>
+  Widget _buildInputArea() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          IconButton(icon: const Icon(Icons.add_a_photo), onPressed: () {}), // Analyse Photo/PDF
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              decoration: const InputDecoration(hintText: "Posez votre question..."),
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.mic), onPressed: () {}), // Vocal
+          IconButton(icon: const Icon(Icons.send), onPressed: _sendMessage),
+        ],
+      ),
+    );
+  }
 
-    <script>
-        // TA NOUVELLE CLÉ API GOOGLE
-        const API_KEY = "AIzaSyACKD7wHn010n5IP3xHUNxCrQtEKEJSUEw";
-
-        const chatContainer = document.getElementById('chat-container');
-        const userInput = document.getElementById('user-input');
-        const startScreen = document.getElementById('start-screen');
-
-        async function processChat() {
-            const text = userInput.value.trim();
-            if (!text) return;
-
-            if (startScreen) startScreen.remove();
-
-            // Message Utilisateur
-            chatContainer.innerHTML += `<div class="message user-msg">${text}</div>`;
-            userInput.value = "";
-
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: text }] }]
-                    })
-                });
-
-                const data = await response.json();
-                const aiResponse = data.candidates[0].content.parts[0].text;
-
-                // Message IA avec rendu Markdown
-                chatContainer.innerHTML += `<div class="message ai-msg">${marked.parse(aiResponse)}</div>`;
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            } catch (err) {
-                chatContainer.innerHTML += `<div class="message" style="color:red">Désolé, une erreur est survenue. Vérifiez votre clé API.</div>`;
-            }
-        }
-
-        document.getElementById('send-btn').onclick = processChat;
-        userInput.onkeypress = (e) => { if(e.key === 'Enter') processChat() };
-
-        // Reconnaissance Vocale
-        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (Speech) {
-            const rec = new Speech();
-            rec.lang = 'fr-FR';
-            document.getElementById('voice-btn').onclick = () => rec.start();
-            rec.onresult = (e) => { userInput.value = e.results[0][0].transcript; };
-        }
-    </script>
-</body>
-</html>
+  void _openSettings() {
+    // Logique pour la génération de clés API personnalisées pour les utilisateurs
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Paramètres Développeur", style: TextStyle(fontWeight: FontWeight.bold)),
+            const ListTile(leading: Icon(Icons.key), title: Text("Générer ma clé API AMPT")),
+            ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text("Fermer")),
+          ],
+        ),
+      ),
+    );
+  }
+}
